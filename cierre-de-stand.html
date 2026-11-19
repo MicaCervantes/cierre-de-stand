@@ -802,14 +802,41 @@ function createEvent(payload){
     afterEventDeleted(eventId);
   }
 
-  function saveContactsToEvent(eventId, rows){
-    var stamped = rows.map(function(r){ return Object.assign({}, r, { uploadedAt: new Date().toISOString() }); });
+ function saveContactsToEvent(eventId, rows){
     var arr = state.contactsByEvent[eventId] || (state.contactsByEvent[eventId]=[]);
-    stamped.forEach(function(r){ arr.push(Object.assign({id: genId('c')}, r)); });
+    var nuevos = rows.map(function(r){
+      return Object.assign({id: genId('c'), uploadedAt: new Date().toISOString()}, r);
+    });
+    nuevos.forEach(function(r){ arr.push(r); });
     maybeUpdateEventSummary(eventId);
     saveLocal();
-    return Promise.resolve();
-  }
+
+    var contactos = nuevos.map(function(r){
+      return {
+        id: r.id,
+        nombre: r.nombre || '',
+        empresa: r.empresa || '',
+        ubicacion: r.ubicacion || '',
+        telefono: r.telefono || '',
+        correo: r.correo || '',
+        contactoVia: r.contactoVia || '',
+        servicio: r.servicio || '',
+        normas: r.normas || '',
+        ejecutivo: r.ejecutivo || '',
+        precioAprox: r.precioAprox || '',
+        notas: r.notas || '',
+        notaVoz: r.notaVoz || ''
+      };
+    });
+
+    return fetch(FLOW_WRITE_CONTACTS, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ feriaId: eventId, contactos: contactos })
+    }).then(function(res){
+      if(!res.ok) throw new Error('HTTP ' + res.status);
+    });
+}
 
   function submitSurvey(eventId, execName, answers){
     var slug = slugify(execName);
@@ -2016,6 +2043,7 @@ function createEvent(payload){
     });
   }
   var FLOW_WRITE_URL = 'https://default4fc2f3aa31c44dcbb719c6c16393e9.d3.environment.api.powerplatform.com:443/powerautomate/automations/direct/cu/30/workflows/0d9fe6613ad8410fb2a44e704019c353/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=myQsgmiyUNcYCjgBDAwJYPvwW4Zzn8KHhViBi8nmrVg';
+  var FLOW_WRITE_CONTACTS = 'https://default4fc2f3aa31c44dcbb719c6c16393e9.d3.environment.api.powerplatform.com:443/powerautomate/automations/direct/cu/19/workflows/ed7494bf77eb4e4f9d17d515988c74f5/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=RwqgsnAJlm1orvhwAF6XXVQhqUf_hh8pEPL7oZ4Z5Ss';
   var FLOW_READ_URL = 'https://default4fc2f3aa31c44dcbb719c6c16393e9.d3.environment.api.powerplatform.com:443/powerautomate/automations/direct/cu/14/workflows/223b152fe7834a2c8d3c30330e359d2a/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=k8dUt4VMCucylmfv_fKeRbv3TSLzdPblnaT5NFgUwf8';
 
 function excelDateToIso(v){
