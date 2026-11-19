@@ -688,12 +688,13 @@
     }
   }
 
-  function updateDbStatus(){
-    var dot = document.getElementById('dbDot'), txt = document.getElementById('dbStatus');
-    if(!dot || !txt) return;
-    if(localStorageOk){ dot.style.background = 'var(--good)'; txt.textContent = 'Guardado en este navegador'; }
-    else { dot.style.background = 'var(--warn)'; txt.textContent = 'No se pudo guardar (almacenamiento bloqueado)'; }
-  }
+  function updateDbStatus(fromFlow){
+  var dot = document.getElementById('dbDot'), txt = document.getElementById('dbStatus');
+  if(!dot || !txt) return;
+  if(fromFlow){ dot.style.background = 'var(--good)'; txt.textContent = 'Conectado al Excel compartido'; return; }
+  if(localStorageOk){ dot.style.background = 'var(--good)'; txt.textContent = 'Guardado en este navegador'; }
+  else { dot.style.background = 'var(--warn)'; txt.textContent = 'No se pudo guardar (almacenamiento bloqueado)'; }
+}
 
   function subscribeEventChildren(){
     var id = state.currentEventId;
