@@ -1995,13 +1995,113 @@
     document.querySelectorAll('.tab-btn').forEach(function(btn){
       btn.addEventListener('click', function(){ setActiveTab(btn.dataset.tab); });
     });
-  }
+  }var FLOW_READ_URL = 'https://default4fc2f3aa31c44dcbb719c6c16393e9.d3.environment.api.powerplatform.com:443/powerautomate/automations/direct/cu/14/workflows/223b152fe7834a2c8d3c30330e359d2a/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=k8dUt4VMCucylmfv_fKeRbv3TSLzdPblnaT5NFgUwf8';
 
-  function init(){
-    bindStaticEvents();
-    setActiveTab('resumen');
-    initDb();
-  }
+function excelDateToIso(v){
+  if(v===null || v===undefined || v==='') return '';
+  var n = Number(v);
+  if(isNaN(n)) return String(v);
+  var d = new Date(Date.UTC(1899, 11, 30) + Math.round(n) * 86400000);
+  return d.toISOString().slice(0, 10);
+}
+
+function excelDateToIsoTs(v){
+  if(!v) return '';
+  var n = Number(v);
+  if(isNaN(n)) return '';
+  return new Date(Date.UTC(1899, 11, 30) + n * 86400000).toISOString();
+}
+
+function splitList(v){
+  return String(v||'').split(',').map(function(s){ return s.trim(); }).filter(Boolean);
+}
+
+function loadFromFlow(){
+  return fetch(FLOW_READ_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: '{}'
+  }).then(function(res){
+    if(!res.ok) throw new Error('HTTP ' + res.status);
+    return res.json();
+  }).then(function(data){
+    var ferias = (data.ferias || []).filter(function(r){ return r['Nombre de la feria']; });
+    var contactos = (data.contactos || []).filter(function(r){ return r['Nombre de contacto'] || r['Empresa']; });
+    var encuestas = (data.encuestas || []).filter(function(r){ return r['Ejecutivo']; });
+    var equipo = (data.equipo || []).filter(function(r){ return r['Nombre'] && r['Activo'] !== 'No'; });
+    var destinatarios = (data.destinatarios || []).filter(function(r){ return r['Correo']; });
+
+    state.events = ferias.map(function(r){
+      return {
+        id: r['ID'] || genId('evt'),
+        name: r['Nombre de la feria'],
+        startDate: excelDateToIso(r['Fecha inicio']),
+        endDate: excelDateToIso(r['Fecha fin']),
+        location: r['Ubicación'] || '',
+        notes: r['Notas'] || '',
+        assignedExecs: splitList(r['Ejecutivos asignados (slugs)']),
+        createdAt: excelDateToIsoTs(r['Creada el']),
+        reportSentAt: excelDateToIsoTs(r['Reporte enviado el']),
+        reportSentTo: r['Reporte enviado a'] || ''
+      };
+    });
+
+    state.contactsByEvent = {};
+    contactos.forEach(function(r){
+      var fid = r['Feria ID'];
+      (state.contactsByEvent[fid] = state.contactsByEvent[fid] || []).push({
+        id: r['ID'] || genId('c'),
+        nombre: r['Nombre de contacto'] || '',
+        empresa: r['Empresa'] || '',
+        ubicacion: r['Ubicación'] || '',
+        telefono: r['Teléfono'] || '',
+        correo: r['Correo'] || '',
+        contactoVia: r['Contacto vía'] || '',
+        servicio: r['Servicio'] || '',
+        normas: r['Norma(s)'] || '',
+        ejecutivo: r['Ejecutivo'] || '',
+        precioAprox: String(r['Precio aproximado'] || ''),
+        precioAproxNum: parsePrice(r['Precio aproximado']),
+        notas: r['Notas'] || '',
+        notaVoz: r['Nota de voz'] || ''
+      });
+    });
+
+    state.surveysByEvent = {};
+    encuestas.forEach(function(r){
+      var fid = r['Feria ID'];
+      (state.surveysByEvent[fid] = state.surveysByEvent[fid] || []).push({
+        id: slugify(r['Ejecutivo']),
+        ejecutivo: r['Ejecutivo'],
+        apreciacion: Number(r['Apreciación (1-5)']) || null,
+        volveria: r['¿Volvería?'] || null,
+        standInvertir: r['¿Invertiría en stand?'] || null,
+        comentario: r['Comentario'] || '',
+        submittedAt: excelDateToIsoTs(r['Enviada el'])
+      });
+    });
+
+    state.execRoster = equipo.map(function(r){
+      return { slug: slugify(r['Nombre']), name: r['Nombre'], email: r['Correo'] || '' };
+    }).sort(function(a,b){ return a.name.localeCompare(b.name); });
+
+    state.reportRecipients = destinatarios.map(function(r){
+      return { name: r['Nombre'], email: r['Correo'], defaultOn: r['Por defecto en el reporte'] === 'Sí' };
+    });
+
+    saveLocal();
+    renderAll();
+    updateDbStatus(true);
+  });
+}
+function init(){
+  bindStaticEvents();
+  setActiveTab('resumen');
+  initDb();
+  loadFromFlow().catch(function(err){
+    console.error(err);
+    toast('No se pudo leer el Excel. Se muestran los datos guardados en este navegador.', 4000);
+  });
 
   if(document.readyState==='loading'){ document.addEventListener('DOMContentLoaded', init); } else { init(); }
 })();
