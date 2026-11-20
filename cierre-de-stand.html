@@ -1742,7 +1742,7 @@ function setExecAssigned(eventId, slug, assigned){
           '<div class="icon"><svg viewBox="0 0 24 24" fill="none"><path d="M20 6L9 17l-5-5" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg></div>' +
           '<div class="text"><h4>Reporte completo — listo para enviar</h4>' +
             '<p>Todos los contactos, el equipo y las encuestas de "'+escapeHtml(ev.name)+'" están cargados. Envíalo ahora a Guillermo Godiño y Micaela Cervantes.</p></div>' +
-          '<button type="button" class="btn btn-primary" onclick="App.copyReportEmail(\''+ev.id+'\')">Copiar y enviar reporte</button>' +
+          '<button type="button" class="btn btn-primary" onclick="App.sendReportEmail(\''+ev.id+'\')">Enviar reporte</button>'
         '</div>';
     } else if(ev.reportSentAt){
       sendBanner =
@@ -1804,7 +1804,8 @@ function setExecAssigned(eventId, slug, assigned){
         '<div class="panel-head"><div><h3>Compartir reporte</h3><p class="hint">Copia el reporte con diseño (logo, KPIs y veredicto) y pégalo con Ctrl/Cmd+V directo en un correo nuevo para los destinatarios marcados — Gmail y Outlook conservan el formato.</p></div></div>' +
         '<div style="margin-bottom:12px;"><div class="recipient-list">' + recipientChecklist + '</div></div>' +
         '<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">' +
-          '<button class="btn btn-primary" onclick="App.copyReportEmail(\''+ev.id+'\')">Copiar reporte</button>' +
+          '<button class="btn btn-primary" onclick="App.sendReportEmail(\''+ev.id+'\')">Enviar por correo</button>' +
+          '<button class="btn btn-ghost" onclick="App.copyReportEmail(\''+ev.id+'\')">Copiar reporte</button>' +
           '<button class="btn btn-ghost" onclick="App.downloadReportEmail(\''+ev.id+'\')">Descargar (.html)</button>' +
         '</div>' +
       '</div>';
@@ -1999,7 +2000,6 @@ function setExecAssigned(eventId, slug, assigned){
       var plain = 'Para: '+parts.to+'\nAsunto: '+parts.subject+'\n\n'+parts.body;
       copyHtmlToClipboard(html, plain).then(function(){
         toast('Reporte copiado con formato. Pégalo (Ctrl/Cmd+V) en un correo nuevo para '+parts.to+'.');
-        markReportSentIfComplete(eventId, parts.to);
       }).catch(function(){
         toast('No se pudo copiar automáticamente. Selecciona y copia el texto manualmente.');
       });
@@ -2013,7 +2013,6 @@ function setExecAssigned(eventId, slug, assigned){
         var blob = new Blob([html], { type:'text/html' });
         downloadBlob(blob, filename);
         toast('Archivo descargado.');
-        markReportSentIfComplete(eventId, parts.to);
       }catch(err){
         toast('No se pudo descargar: ' + (err && err.message ? err.message : 'error desconocido'));
       }
