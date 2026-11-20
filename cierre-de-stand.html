@@ -1777,8 +1777,40 @@ function setExecAssigned(eventId, slug, assigned){
         '</div></div>';
       return;
     }
+        var list = (state.reportRecipients && state.reportRecipients.length)
+      ? state.reportRecipients.map(function(r){ return { name:r.name, email:r.email, on:!!r.defaultOn }; })
+      : state.execRoster.map(function(p){ return { name:p.name, email:p.email, on:DEFAULT_REPORT_RECIPIENTS.indexOf(p.email)>=0 }; });
+    var recipientChecklist = list.map(function(r){
+      return '<label class="recipient-item"><input type="checkbox" class="report-recipient-cb" value="'+escapeHtml(r.email)+'"'+(r.on?' checked':'')+'>'+escapeHtml(r.name)+'</label>';
+    }).join('');
 
-    var others = state.events.filter(function(e){ return e.id!==ev.id; }).map(function(e){ return e.summary; }).filter(Boolean);
+    var banner = '';
+    if(progress.pct === 100 && !ev.reportSentAt){
+      banner = '<div class="send-banner"><div class="text"><h4>Reporte completo, listo para enviar</h4>' +
+        '<p>Todos los contactos, el equipo y las encuestas de "'+escapeHtml(ev.name)+'" están cargados.</p></div>' +
+        '<button type="button" class="btn btn-primary" onclick="App.sendReportEmail(\''+ev.id+'\')">Enviar reporte</button></div>';
+    } else if(ev.reportSentAt){
+      banner = '<div class="send-note"><span>Reporte enviado el '+escapeHtml(fmtDateTime(ev.reportSentAt))+(ev.reportSentTo?' a '+escapeHtml(ev.reportSentTo):'')+'.</span></div>';
+    }
+
+    var share = '<div class="panel"><div class="panel-head"><div><h3>Compartir reporte</h3>' +
+      '<p class="hint">Marca a quién se envía. La vista previa de arriba es lo mismo que llega al correo.</p></div></div>' +
+      '<div class="recipient-list" style="margin-bottom:12px;">'+recipientChecklist+'</div>' +
+      '<div style="display:flex;gap:10px;flex-wrap:wrap;">' +
+        '<button class="btn btn-primary" onclick="App.sendReportEmail(\''+ev.id+'\')">Enviar por correo</button>' +
+        '<button class="btn btn-ghost" onclick="App.copyReportEmail(\''+ev.id+'\')">Copiar reporte</button>' +
+        '<button class="btn btn-ghost" onclick="App.downloadReportEmail(\''+ev.id+'\')">Descargar (.html)</button>' +
+      '</div></div>';
+
+    el.innerHTML = progressPanel + banner +
+      '<div class="panel" style="padding:0;overflow:hidden;"><iframe id="reportPreview" title="Vista previa del reporte" style="width:100%;height:1200px;border:0;display:block;"></iframe></div>' +
+      share;
+
+    var parts = buildReportEmailParts(ev.id);
+    if(parts){
+      document.getElementById('reportPreview').srcdoc = wrapStandaloneHtml(buildReportEmailHtml(parts), parts.subject);
+    }
+}
     var avgOthers = others.length ? others.reduce(function(a,s){ return a+(s.contactCount||0); },0)/others.length : null;
     var delta = (avgOthers!==null) ? Math.round(summary.contactCount - avgOthers) : null;
 
@@ -1794,24 +1826,6 @@ function setExecAssigned(eventId, slug, assigned){
       var checked = DEFAULT_REPORT_RECIPIENTS.indexOf(p.email) >= 0;
       return '<label class="recipient-item"><input type="checkbox" class="report-recipient-cb" value="'+escapeHtml(p.email)+'"'+(checked?' checked':'')+'>'+escapeHtml(p.name)+'</label>';
     }).join('');
-
-    var reportComplete = progress.pct === 100;
-    var sendBanner = '';
-    if(reportComplete && !ev.reportSentAt){
-      sendBanner =
-        '<div class="send-banner">' +
-          '<div class="icon"><svg viewBox="0 0 24 24" fill="none"><path d="M20 6L9 17l-5-5" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg></div>' +
-          '<div class="text"><h4>Reporte completo — listo para enviar</h4>' +
-            '<p>Todos los contactos, el equipo y las encuestas de "'+escapeHtml(ev.name)+'" están cargados. Envíalo ahora a Guillermo Godiño y Micaela Cervantes.</p></div>' +
-          '<button type="button" class="btn btn-primary" onclick="App.sendReportEmail(\''+ev.id+'\')">Enviar reporte</button>'
-        '</div>';
-    } else if(ev.reportSentAt){
-      sendBanner =
-        '<div class="send-note">' +
-          '<svg viewBox="0 0 24 24" fill="none"><path d="M20 6L9 17l-5-5" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>' +
-          '<span>Reporte enviado el '+escapeHtml(fmtDateTime(ev.reportSentAt))+(ev.reportSentTo?' a '+escapeHtml(ev.reportSentTo):'')+'.</span>' +
-        '</div>';
-    }
 
     el.innerHTML =
       progressPanel +
