@@ -1191,133 +1191,120 @@ function setExecAssigned(eventId, slug, assigned){
      download, so "professional-looking in the email" and "professional-looking
      as a file" both come from the same source. */
   function buildReportEmailHtml(parts){
-    var ev = parts.ev, summary = parts.summary, verdict = parts.verdict;
-    var vc = VERDICT_EMAIL_COLORS[verdict.level] || VERDICT_EMAIL_COLORS.neutral;
-    var logoImg = document.querySelector('.brand-logo');
-    var logoSrc = logoImg ? logoImg.src : '';
-    var metaBits = [];
-    if(ev.startDate) metaBits.push(fmtDateRange(ev.startDate, ev.endDate));
-    if(ev.location) metaBits.push(ev.location);
-    function kpi(label, value){
-      return '<td style="width:25%;padding:12px 10px;background:#EEF3F6;border:1px solid #DCE6EA;text-align:center;">' +
-        '<div style="font-size:10.5px;text-transform:uppercase;letter-spacing:.04em;color:#4A6670;font-family:Arial,Helvetica,sans-serif;">'+escapeHtml(label)+'</div>' +
-        '<div style="font-size:19px;font-weight:700;color:#101826;margin-top:4px;font-family:Arial,Helvetica,sans-serif;">'+escapeHtml(value)+'</div>' +
-      '</td>';
-    }
-    function statRow(label, value, isLast){
-      return '<tr><td style="padding:8px 0;'+(isLast?'':'border-bottom:1px solid #DCE6EA;')+'color:#4A6670;font-size:13px;font-family:Arial,Helvetica,sans-serif;">'+escapeHtml(label)+'</td>' +
-        '<td style="padding:8px 0;'+(isLast?'':'border-bottom:1px solid #DCE6EA;')+'text-align:right;font-weight:700;color:#101826;font-size:13px;font-family:Arial,Helvetica,sans-serif;">'+escapeHtml(value)+'</td></tr>';
-    }
-    var YN = {si:'Sí', tal_vez:'Tal vez', no:'No'};
-    var execRowsHtml = parts.execBreakdown.map(function(ex, i){
-      var isLast = i===parts.execBreakdown.length-1;
-      var bd = isLast ? '' : 'border-bottom:1px solid #DCE6EA;';
-      var td = 'padding:7px 6px;'+bd+'font-size:12.5px;color:#101826;font-family:Arial,Helvetica,sans-serif;';
-      return '<tr>' +
-        '<td style="'+td+'font-weight:600;">'+escapeHtml(ex.name)+'</td>' +
-        '<td style="'+td+'text-align:center;">'+ex.count+'</td>' +
-        '<td style="'+td+'text-align:center;">'+(ex.apreciacion!==null ? ex.apreciacion+'/5' : '—')+'</td>' +
-        '<td style="'+td+'text-align:center;">'+(ex.volveria ? (YN[ex.volveria]||ex.volveria) : '—')+'</td>' +
-        '<td style="'+td+'text-align:center;">'+(ex.standInvertir ? (YN[ex.standInvertir]||ex.standInvertir) : '—')+'</td>' +
-      '</tr>';
-    }).join('');
-    var execBreakdownBlock = parts.execBreakdown.length ? (
-      '<tr><td style="padding:20px 0 0 0;">' +
-        '<div style="font-size:14px;font-weight:700;color:#101826;font-family:Georgia,\'Times New Roman\',serif;margin-bottom:8px;">Desglose por ejecutivo</div>' +
-        '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">' +
-          '<tr>' +
-            '<td style="padding:6px;font-size:10.5px;text-transform:uppercase;color:#4A6670;font-family:Arial,Helvetica,sans-serif;border-bottom:2px solid #DCE6EA;">Ejecutivo</td>' +
-            '<td style="padding:6px;font-size:10.5px;text-transform:uppercase;color:#4A6670;text-align:center;font-family:Arial,Helvetica,sans-serif;border-bottom:2px solid #DCE6EA;">Contactos</td>' +
-            '<td style="padding:6px;font-size:10.5px;text-transform:uppercase;color:#4A6670;text-align:center;font-family:Arial,Helvetica,sans-serif;border-bottom:2px solid #DCE6EA;">Apreciación</td>' +
-            '<td style="padding:6px;font-size:10.5px;text-transform:uppercase;color:#4A6670;text-align:center;font-family:Arial,Helvetica,sans-serif;border-bottom:2px solid #DCE6EA;">Volvería</td>' +
-            '<td style="padding:6px;font-size:10.5px;text-transform:uppercase;color:#4A6670;text-align:center;font-family:Arial,Helvetica,sans-serif;border-bottom:2px solid #DCE6EA;">Stand</td>' +
-          '</tr>' +
-          execRowsHtml +
-        '</table>' +
-      '</td></tr>'
-    ) : '';
+  var ev = parts.ev, s = parts.summary, v = parts.verdict;
+  var C = { ink:'#101826', muted:'#4A6670', faint:'#69868D', line:'#DCE6EA', surf:'#EEF3F6',
+    accent:'#0C9DE5', navy:'#180B5D', good:'#1E9E64', warn:'#C97F00', bad:'#C6293D' };
+  var F = 'font-family:Arial,Helvetica,sans-serif;';
+  var vcol = {good:C.good, warn:C.warn, bad:C.bad, neutral:C.muted}[v.level] || C.muted;
+  var vbg = {good:'#DCF1E5', warn:'#F7E7C6', bad:'#F8DEE1', neutral:'#EEF3F6'}[v.level] || '#EEF3F6';
+  var contacts = state.contactsByEvent[ev.id] || [];
+  var normas = topEntries(categoryMap(contacts, 'normas', /[,;\/]+/), 6);
+  var servicios = topEntries(categoryMap(contacts, 'servicio'), 6);
+  var execEntries = parts.execBreakdown.filter(function(x){ return x.count > 0; })
+    .map(function(x){ return [x.name, x.count]; });
 
-    function miniList(title, entries){
-      if(!entries.length) return '<td style="width:50%;vertical-align:top;padding-right:10px;"></td>';
-      var rows = entries.map(function(e){
-        return '<tr><td style="padding:4px 0;font-size:12.5px;color:#101826;font-family:Arial,Helvetica,sans-serif;">'+escapeHtml(e[0])+'</td>' +
-          '<td style="padding:4px 0;font-size:12.5px;color:#4A6670;text-align:right;font-family:Arial,Helvetica,sans-serif;">'+e[1]+'</td></tr>';
-      }).join('');
-      return '<td style="width:50%;vertical-align:top;padding-right:14px;">' +
-        '<div style="font-size:11px;text-transform:uppercase;color:#4A6670;font-family:Arial,Helvetica,sans-serif;margin-bottom:4px;">'+escapeHtml(title)+'</div>' +
-        '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">'+rows+'</table>' +
-      '</td>';
-    }
-    var topListsBlock = (parts.ubicacionTop.length || parts.servicioTop.length) ? (
-      '<tr><td style="padding:20px 0 0 0;">' +
-        '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">' +
-          '<tr>' + miniList('Top ubicaciones', parts.ubicacionTop) + miniList('Servicios más solicitados', parts.servicioTop) + '</tr>' +
-        '</table>' +
-      '</td></tr>'
-    ) : '';
-
-    var commentsBlock = parts.comentarios.length ? (
-      '<tr><td style="padding:20px 0 0 0;">' +
-        '<div style="font-size:14px;font-weight:700;color:#101826;font-family:Georgia,\'Times New Roman\',serif;margin-bottom:8px;">Comentarios del equipo comercial</div>' +
-        parts.comentarios.map(function(c){
-          return '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;margin-bottom:8px;">' +
-            '<tr>' +
-              '<td width="3" style="background:#DCE6EA;font-size:0;line-height:0;">&nbsp;</td>' +
-              '<td style="padding:2px 0 2px 10px;">' +
-                '<div style="font-size:12.5px;color:#101826;font-style:italic;font-family:Arial,Helvetica,sans-serif;">"'+escapeHtml(c.text)+'"</div>' +
-                '<div style="font-size:11px;color:#4A6670;margin-top:3px;font-family:Arial,Helvetica,sans-serif;">— '+escapeHtml(c.name)+'</div>' +
-              '</td>' +
-            '</tr>' +
-          '</table>';
-        }).join('') +
-      '</td></tr>'
-    ) : '';
-
-    return (
-    '<div style="max-width:600px;font-family:Arial,Helvetica,sans-serif;">' +
-      '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:600px;border-collapse:collapse;">' +
-        (logoSrc ? '<tr><td style="padding:0 0 14px 0;"><img src="'+logoSrc+'" alt="Control Union" style="height:26px;width:auto;display:block;border:0;"></td></tr>' : '') +
-        '<tr><td style="padding:0;border-top:3px solid #0C9DE5;line-height:0;font-size:0;">&nbsp;</td></tr>' +
-        '<tr><td style="padding:18px 0 2px 0;">' +
-          '<div style="font-size:19px;font-weight:700;color:#101826;font-family:Georgia,\'Times New Roman\',serif;">Reporte de feria: '+escapeHtml(ev.name)+'</div>' +
-          (metaBits.length ? '<div style="font-size:12.5px;color:#4A6670;margin-top:5px;">'+escapeHtml(metaBits.join(' · '))+'</div>' : '') +
-        '</td></tr>' +
-        '<tr><td style="padding:16px 0 6px 0;">' +
-          '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:separate;border-spacing:6px 0;">' +
-            '<tr>' +
-              kpi('Contactos', String(summary.contactCount)) +
-              kpi('Ejecutivos', String(summary.execCount)) +
-              kpi('Valor potencial', fmtUsd(summary.totalPrice)) +
-              kpi('Apreciación', summary.avgApreciacion!==null ? summary.avgApreciacion.toFixed(1)+'/5' : '—') +
-            '</tr>' +
-          '</table>' +
-        '</td></tr>' +
-        '<tr><td style="padding:10px 0 4px 0;">' +
-          '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">' +
-            statRow('¿Volvería al evento?', summary.pctVolver!==null ? summary.pctVolver+'%' : 'sin datos aún', false) +
-            statRow('¿Invertiría en stand?', summary.pctStand!==null ? summary.pctStand+'%' : 'sin datos aún', true) +
-          '</table>' +
-        '</td></tr>' +
-        '<tr><td style="padding:16px 0 0 0;">' +
-          '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;background:'+vc.bg+';border-radius:8px;">' +
-            '<tr>' +
-              '<td width="4" style="background:'+vc.ink+';border-radius:4px 0 0 4px;font-size:0;line-height:0;">&nbsp;</td>' +
-              '<td style="padding:14px 16px;">' +
-                '<div style="font-size:13.5px;font-weight:700;color:'+vc.ink+';font-family:Arial,Helvetica,sans-serif;">'+escapeHtml(verdict.title)+'</div>' +
-                '<div style="font-size:13px;color:#101826;margin-top:6px;line-height:1.55;font-family:Arial,Helvetica,sans-serif;">'+escapeHtml(verdict.text)+'</div>' +
-              '</td>' +
-            '</tr>' +
-          '</table>' +
-        '</td></tr>' +
-        execBreakdownBlock +
-        topListsBlock +
-        commentsBlock +
-        '<tr><td style="padding:18px 0 0 0;border-top:1px solid #DCE6EA;margin-top:16px;font-size:11.5px;color:#4A6670;font-family:Arial,Helvetica,sans-serif;">' +
-          'Reporte completo y actualizado: <a href="'+parts.link+'" style="color:#0C9DE5;">'+escapeHtml(parts.link)+'</a>' +
-        '</td></tr>' +
-      '</table>' +
-    '</div>');
+  function bar(pct, color){
+    pct = Math.max(0, Math.min(100, Math.round(pct || 0)));
+    return '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;"><tr>' +
+      (pct > 0 ? '<td width="'+pct+'%" style="background:'+color+';height:10px;font-size:0;line-height:0;">&nbsp;</td>' : '') +
+      (pct < 100 ? '<td style="background:'+C.surf+';height:10px;font-size:0;line-height:0;">&nbsp;</td>' : '') +
+      '</tr></table>';
   }
+  function rows(items){
+    return '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">' +
+      items.map(function(it){
+        return '<tr>' +
+          '<td style="padding:7px 10px 7px 0;width:36%;'+F+'font-size:12.5px;color:'+C.ink+';">'+escapeHtml(it.label)+'</td>' +
+          '<td style="padding:7px 8px;width:46%;">'+bar(it.pct, it.color || C.accent)+'</td>' +
+          '<td style="padding:7px 0 7px 6px;width:18%;text-align:right;'+F+'font-size:12.5px;font-weight:700;color:'+C.ink+';white-space:nowrap;">'+escapeHtml(String(it.text))+'</td>' +
+        '</tr>';
+      }).join('') + '</table>';
+  }
+  function maxOf(entries){ return Math.max.apply(null, entries.map(function(e){ return e[1]; }).concat([1])); }
+  function entriesRows(entries, color){
+    var m = maxOf(entries);
+    return rows(entries.map(function(e){ return { label:e[0], pct:100*e[1]/m, text:e[1], color:color }; }));
+  }
+  function card(title, inner){
+    return '<tr><td style="padding:0 0 14px 0;">' +
+      '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:separate;background:#FFFFFF;border:1px solid '+C.line+';border-radius:12px;">' +
+        '<tr><td style="padding:16px 18px;">' +
+          '<div style="'+F+'font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:'+C.accent+';margin-bottom:12px;">'+escapeHtml(title)+'</div>' +
+          inner +
+        '</td></tr>' +
+      '</table></td></tr>';
+  }
+  function kpi(label, value, color){
+    return '<td width="25%" style="padding:0 4px;">' +
+      '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:separate;background:#FFFFFF;border:1px solid '+C.line+';border-top:3px solid '+color+';border-radius:10px;">' +
+        '<tr><td style="padding:12px 8px;text-align:center;">' +
+          '<div style="'+F+'font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:'+C.faint+';">'+escapeHtml(label)+'</div>' +
+          '<div style="'+F+'font-size:20px;font-weight:700;color:'+C.ink+';margin-top:4px;">'+escapeHtml(value)+'</div>' +
+        '</td></tr>' +
+      '</table></td>';
+  }
+
+  var metas = [];
+  if(ev.startDate) metas.push(fmtDateRange(ev.startDate, ev.endDate));
+  if(ev.location) metas.push(ev.location);
+
+  var header =
+    '<tr><td style="background:'+C.navy+';border-radius:14px 14px 0 0;padding:22px 24px;">' +
+      '<div style="'+F+'font-size:11px;font-weight:700;letter-spacing:.14em;color:#9FD8F5;text-transform:uppercase;">Control Union · Reporte de feria</div>' +
+      '<div style="font-family:Georgia,\'Times New Roman\',serif;font-size:22px;font-weight:700;color:#FFFFFF;margin-top:6px;">'+escapeHtml(ev.name)+'</div>' +
+      (metas.length ? '<div style="'+F+'font-size:12.5px;color:#C9D9E4;margin-top:6px;">'+escapeHtml(metas.join('  ·  '))+'</div>' : '') +
+    '</td></tr>' +
+    '<tr><td style="height:4px;background:'+C.accent+';font-size:0;line-height:0;">&nbsp;</td></tr>';
+
+  var kpis = '<tr><td style="padding:16px 0 14px 0;"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;"><tr>' +
+    kpi('Contactos', String(s.contactCount), C.accent) +
+    kpi('Ejecutivos', String(s.execCount), C.navy) +
+    kpi('Valor potencial', fmtUsd(s.totalPrice), C.good) +
+    kpi('Apreciación', s.avgApreciacion !== null ? s.avgApreciacion.toFixed(1)+'/5' : '—', C.warn) +
+  '</tr></table></td></tr>';
+
+  var disposicion = card('Disposición del equipo', rows([
+    { label:'Apreciación general', pct: s.avgApreciacion !== null ? s.avgApreciacion/5*100 : 0,
+      text: s.avgApreciacion !== null ? s.avgApreciacion.toFixed(1)+'/5' : 'sin datos', color: C.accent },
+    { label:'¿Volvería al evento?', pct: s.pctVolver || 0,
+      text: s.pctVolver !== null ? s.pctVolver+'%' : 'sin datos', color: C.good },
+    { label:'¿Invertiría en stand?', pct: s.pctStand || 0,
+      text: s.pctStand !== null ? s.pctStand+'%' : 'sin datos', color: C.navy }
+  ]));
+
+  var veredicto = '<tr><td style="padding:0 0 14px 0;">' +
+    '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;background:'+vbg+';border-radius:12px;"><tr>' +
+      '<td width="5" style="background:'+vcol+';border-radius:12px 0 0 12px;font-size:0;line-height:0;">&nbsp;</td>' +
+      '<td style="padding:14px 18px;">' +
+        '<div style="'+F+'font-size:14px;font-weight:700;color:'+vcol+';">'+escapeHtml(v.title)+'</div>' +
+        '<div style="'+F+'font-size:13px;color:'+C.ink+';line-height:1.55;margin-top:6px;">'+escapeHtml(v.text)+'</div>' +
+      '</td>' +
+    '</tr></table></td></tr>';
+
+  var sections = '';
+  if(execEntries.length) sections += card('Contactos por ejecutivo', entriesRows(execEntries, C.accent));
+  if(servicios.length) sections += card('Contactos por servicio', entriesRows(servicios, C.navy));
+  if(parts.ubicacionTop.length) sections += card('Top ubicaciones', entriesRows(parts.ubicacionTop, C.good));
+  if(normas.length) sections += card('Normas de interés', entriesRows(normas, C.warn));
+  if(parts.comentarios.length){
+    sections += card('Comentarios del equipo', parts.comentarios.map(function(c){
+      return '<div style="'+F+'font-size:13px;color:'+C.ink+';line-height:1.55;font-style:italic;margin-bottom:10px;">"'+escapeHtml(c.text)+'"' +
+        '<div style="font-style:normal;font-size:11.5px;color:'+C.muted+';margin-top:3px;">— '+escapeHtml(c.name)+'</div></div>';
+    }).join(''));
+  }
+
+  var footer = '<tr><td style="padding:6px 2px 0 2px;'+F+'font-size:11.5px;color:'+C.muted+';line-height:1.5;">' +
+    'Reporte completo y actualizado: <a href="'+parts.link+'" style="color:'+C.accent+';">'+escapeHtml(parts.link)+'</a></td></tr>';
+
+  var body = '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">' +
+    kpis + disposicion + veredicto + sections + footer + '</table>';
+
+  return '<div style="background:#F2F6F8;padding:18px 0;">' +
+    '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:separate;max-width:640px;margin:0 auto;background:#F2F6F8;">' +
+      header +
+      '<tr><td style="background:#F2F6F8;padding:16px 14px 8px 14px;">' + body + '</td></tr>' +
+    '</table></div>';
+}
 
   function wrapStandaloneHtml(bodyHtml, title){
     return '<!doctype html><html><head><meta charset="utf-8"><title>'+escapeHtml(title)+'</title></head>' +
