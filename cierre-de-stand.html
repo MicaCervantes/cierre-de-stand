@@ -1700,12 +1700,63 @@ function setExecAssigned(eventId, slug, assigned){
     var ev = currentEvent();
     if(!ev){
       el.innerHTML = '<div class="panel"><div class="empty-state">' +
-        '<svg viewBox="0 0 24 24" fill="none"><rect x="3.5" y="3.5" width="17" height="17" rx="3" stroke="currentColor" stroke-width="1.6"/></svg>' +
-        '<h3>Elige o crea una feria primero</h3><p>El reporte se genera a partir de los contactos y la encuesta de una feria.</p>' +
+        '<h3>Elige o crea una feria primero</h3>' +
+        '<p>El reporte se genera a partir de los contactos y la encuesta de una feria.</p>' +
         '<button class="btn btn-primary" onclick="App.openEventModal()">Crear feria</button>' +
         '</div></div>';
       return;
     }
+    var contacts = state.contactsByEvent[ev.id] || [];
+    var surveys = state.surveysByEvent[ev.id] || [];
+    var progress = computeProgress(ev.id);
+
+    var progressPanel = '<div class="panel">' +
+      '<div class="panel-head"><div><h3>Estado del reporte</h3>' +
+      '<p class="hint">'+progress.surveysDone+' de '+progress.surveysTotal+' comerciales han respondido la encuesta</p></div></div>' +
+      progressBarHtml(progress.pct, 'Avance general') +
+      progressChecklistHtml(progress.milestones) + '</div>';
+
+    if(!contacts.length && !surveys.length){
+      el.innerHTML = progressPanel + '<div class="panel"><div class="empty-state">' +
+        '<h3>Aún no hay datos para "'+escapeHtml(ev.name)+'"</h3>' +
+        '<p>Carga los contactos y pide al equipo que responda la encuesta.</p></div></div>';
+      return;
+    }
+
+    var list = (state.reportRecipients && state.reportRecipients.length)
+      ? state.reportRecipients.map(function(r){ return { name:r.name, email:r.email, on:!!r.defaultOn }; })
+      : state.execRoster.map(function(p){ return { name:p.name, email:p.email, on:DEFAULT_REPORT_RECIPIENTS.indexOf(p.email)>=0 }; });
+    var recipientChecklist = list.map(function(r){
+      return '<label class="recipient-item"><input type="checkbox" class="report-recipient-cb" value="'+escapeHtml(r.email)+'"'+(r.on?' checked':'')+'>'+escapeHtml(r.name)+'</label>';
+    }).join('');
+
+    var banner = '';
+    if(progress.pct === 100 && !ev.reportSentAt){
+      banner = '<div class="send-banner"><div class="text"><h4>Reporte completo, listo para enviar</h4>' +
+        '<p>Todos los contactos, el equipo y las encuestas de "'+escapeHtml(ev.name)+'" están cargados.</p></div>' +
+        '<button type="button" class="btn btn-primary" onclick="App.sendReportEmail(\''+ev.id+'\')">Enviar reporte</button></div>';
+    } else if(ev.reportSentAt){
+      banner = '<div class="send-note"><span>Reporte enviado el '+escapeHtml(fmtDateTime(ev.reportSentAt))+(ev.reportSentTo?' a '+escapeHtml(ev.reportSentTo):'')+'.</span></div>';
+    }
+
+    var share = '<div class="panel"><div class="panel-head"><div><h3>Compartir reporte</h3>' +
+      '<p class="hint">Marca a quién se envía. La vista previa de arriba es lo mismo que llega al correo.</p></div></div>' +
+      '<div class="recipient-list" style="margin-bottom:12px;">'+recipientChecklist+'</div>' +
+      '<div style="display:flex;gap:10px;flex-wrap:wrap;">' +
+        '<button class="btn btn-primary" onclick="App.sendReportEmail(\''+ev.id+'\')">Enviar por correo</button>' +
+        '<button class="btn btn-ghost" onclick="App.copyReportEmail(\''+ev.id+'\')">Copiar reporte</button>' +
+        '<button class="btn btn-ghost" onclick="App.downloadReportEmail(\''+ev.id+'\')">Descargar (.html)</button>' +
+      '</div></div>';
+
+    el.innerHTML = progressPanel + banner +
+      '<div class="panel" style="padding:0;overflow:hidden;"><iframe id="reportPreview" title="Vista previa del reporte" style="width:100%;height:1200px;border:0;display:block;"></iframe></div>' +
+      share;
+
+    var parts = buildReportEmailParts(ev.id);
+    if(parts){
+      document.getElementById('reportPreview').srcdoc = wrapStandaloneHtml(buildReportEmailHtml(parts), parts.subject);
+    }
+}
     var contacts = state.contactsByEvent[ev.id] || [];
     var surveys = state.surveysByEvent[ev.id] || [];
     var summary = computeEventSummary(contacts, surveys, ev.assignedExecs);
