@@ -923,16 +923,23 @@ function setExecAssigned(eventId, slug, assigned){
   function getExecList(eventId){
     var ev = state.events.find(function(e){ return e.id===eventId; });
     var contacts = state.contactsByEvent[eventId] || [];
-    var counts = {};
+    var surveys = state.surveysByEvent[eventId] || [];
+    var slugs = {}, names = {}, counts = {};
+    (ev && ev.assignedExecs || []).forEach(function(s){ slugs[s] = true; });
     contacts.forEach(function(c){
       var name = (c.ejecutivo||'').trim(); if(!name) return;
-      var s = slugify(name); counts[s] = (counts[s]||0) + 1;
+      var s = slugify(name);
+      slugs[s] = true; names[s] = name; counts[s] = (counts[s]||0) + 1;
+    });
+    surveys.forEach(function(sv){
+      if(!sv.id) return;
+      slugs[sv.id] = true; if(sv.ejecutivo) names[sv.id] = sv.ejecutivo;
     });
     var rosterBySlug = {};
     state.execRoster.forEach(function(p){ rosterBySlug[p.slug] = p; });
-    var list = ((ev && ev.assignedExecs) || []).map(function(slug){
-      var p = rosterBySlug[slug];
-      return { slug: slug, name: p ? p.name : slug, count: counts[slug] || 0, email: p ? p.email : null };
+    var list = Object.keys(slugs).map(function(s){
+      var p = rosterBySlug[s];
+      return { slug: s, name: p ? p.name : (names[s] || s), count: counts[s] || 0, email: p ? p.email : null };
     });
     return list.sort(function(a,b){ return b.count-a.count || a.name.localeCompare(b.name); });
 }
