@@ -871,7 +871,22 @@ function createEvent(payload){
     });
 }
 
-  function setExecAssigned(eventId, slug, assigned){
+  function saveAssignmentsToFlow(eventId){
+    var ev = state.events.find(function(e){ return e.id===eventId; });
+    if(!ev) return;
+    return fetch(FLOW_SAVE_ASSIGN, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ feriaId: eventId, ejecutivos: (ev.assignedExecs||[]).join(',') })
+    }).then(function(r){
+      if(!r.ok) throw new Error('HTTP ' + r.status);
+    }).catch(function(err){
+      console.error(err);
+      toast('La lista de comerciales no llegó al Excel.', 4000);
+    });
+}
+
+function setExecAssigned(eventId, slug, assigned){
     var ev = state.events.find(function(e){ return e.id===eventId; });
     if(!ev) return;
     var list = (ev.assignedExecs||[]).slice();
@@ -879,42 +894,48 @@ function createEvent(payload){
     if(assigned && idx<0) list.push(slug);
     if(!assigned && idx>=0) list.splice(idx,1);
     updateEvent(eventId, { assignedExecs: list });
-  }
+    saveAssignmentsToFlow(eventId);
+}
 
   function addRosterMember(eventId, name, email){
     name = (name||'').trim(); email = (email||'').trim();
     if(!name){ toast('Escribe el nombre del comercial.'); return; }
     var slug = slugify(name);
-    var already = state.execRoster.some(function(p){ return p.slug===slug; });
-    if(!already){
-      var doc = { name:name, email:email, createdAt:new Date().toISOString() };
-      state.execRoster.push(Object.assign({slug:slug}, doc));
+    var exists = state.execRoster.some(function(p){ return p.slug===slug; });
+    if(!exists){
+      state.execRoster.push({ slug: slug, name: name, email: email });
       state.execRoster.sort(function(a,b){ return a.name.localeCompare(b.name); });
       saveLocal();
+      fetch(FLOW_ADD_EXEC, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ nombre: name, correo: email })
+      }).then(function(r){
+        if(!r.ok) throw new Error('HTTP ' + r.status);
+      }).catch(function(err){
+        console.error(err);
+        toast('El comercial se agregó solo en este navegador.', 4000);
+      });
     }
     setExecAssigned(eventId, slug, true);
-  }
+}
 
   function getExecList(eventId){
     var ev = state.events.find(function(e){ return e.id===eventId; });
     var contacts = state.contactsByEvent[eventId] || [];
-    var rosterBySlug = {};
-    state.execRoster.forEach(function(p){ rosterBySlug[p.slug] = p; });
-    var map = {}; var order = [];
+    var counts = {};
     contacts.forEach(function(c){
       var name = (c.ejecutivo||'').trim(); if(!name) return;
-      var slug = slugify(name);
-      if(!map[slug]){ map[slug] = {slug:slug, name:name, count:0, email:null}; order.push(slug); }
-      map[slug].count++;
+      var s = slugify(name); counts[s] = (counts[s]||0) + 1;
     });
-    (ev && ev.assignedExecs || []).forEach(function(slug){
+    var rosterBySlug = {};
+    state.execRoster.forEach(function(p){ rosterBySlug[p.slug] = p; });
+    var list = ((ev && ev.assignedExecs) || []).map(function(slug){
       var p = rosterBySlug[slug];
-      var name = p ? p.name : slug;
-      if(!map[slug]){ map[slug] = {slug:slug, name:name, count:0, email:p?p.email:null}; order.push(slug); }
+      return { slug: slug, name: p ? p.name : slug, count: counts[slug] || 0, email: p ? p.email : null };
     });
-    order.forEach(function(s){ if(!map[s].email && rosterBySlug[s]) map[s].email = rosterBySlug[s].email; });
-    return order.map(function(s){ return map[s]; }).sort(function(a,b){ return b.count-a.count || a.name.localeCompare(b.name); });
-  }
+    return list.sort(function(a,b){ return b.count-a.count || a.name.localeCompare(b.name); });
+}
 
   /* ---------------------------------------------------------------- */
   /* chart-ish components                                               */
@@ -2065,6 +2086,8 @@ function createEvent(payload){
   var FLOW_WRITE_URL = 'https://default4fc2f3aa31c44dcbb719c6c16393e9.d3.environment.api.powerplatform.com:443/powerautomate/automations/direct/cu/30/workflows/0d9fe6613ad8410fb2a44e704019c353/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=myQsgmiyUNcYCjgBDAwJYPvwW4Zzn8KHhViBi8nmrVg';
   var FLOW_WRITE_CONTACTS = 'https://default4fc2f3aa31c44dcbb719c6c16393e9.d3.environment.api.powerplatform.com:443/powerautomate/automations/direct/cu/19/workflows/ed7494bf77eb4e4f9d17d515988c74f5/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=RwqgsnAJlm1orvhwAF6XXVQhqUf_hh8pEPL7oZ4Z5Ss';
   var FLOW_WRITE_SURVEYS = 'https://default4fc2f3aa31c44dcbb719c6c16393e9.d3.environment.api.powerplatform.com:443/powerautomate/automations/direct/cu/26/workflows/a0167a6f56cb429ea316657abae58f1f/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=NACOmchXnJmJjFnKeWufgcgEMUsCCdgolzkflhktoNI';
+  var FLOW_ADD_EXEC = 'https://default4fc2f3aa31c44dcbb719c6c16393e9.d3.environment.api.powerplatform.com:443/powerautomate/automations/direct/cu/08/workflows/929c67a9f5ca44b6a3d72d34ae7cdee3/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=LQ8Xz7-_JncolEIYNObuPYNAmmJWd2Dtoqdaq9o7Jyc';
+  var FLOW_SAVE_ASSIGN = 'https://default4fc2f3aa31c44dcbb719c6c16393e9.d3.environment.api.powerplatform.com:443/powerautomate/automations/direct/cu/16/workflows/2b77d1d9be0d430e838d9a898ee7a8cd/triggers/manual/paths/invoke?api-version=1';
   var FLOW_READ_URL = 'https://default4fc2f3aa31c44dcbb719c6c16393e9.d3.environment.api.powerplatform.com:443/powerautomate/automations/direct/cu/14/workflows/223b152fe7834a2c8d3c30330e359d2a/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=k8dUt4VMCucylmfv_fKeRbv3TSLzdPblnaT5NFgUwf8';
 
 function excelDateToIso(v){
