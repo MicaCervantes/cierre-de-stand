@@ -2062,6 +2062,28 @@ function setExecAssigned(eventId, slug, assigned){
   /* ---------------------------------------------------------------- */
   /* init                                                                */
   /* ---------------------------------------------------------------- */
+  App.sendReportEmail = function(eventId){
+    var parts = buildReportEmailParts(eventId);
+    if(!parts) return;
+    if(!parts.to){ toast('Marca al menos un destinatario.'); return; }
+    toast('Enviando reporte…', 3000);
+    fetch(FLOW_SEND_REPORT, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        to: parts.to,
+        subject: parts.subject,
+        html: buildReportEmailHtml(parts)
+      })
+    }).then(function(r){
+      if(!r.ok) throw new Error('HTTP ' + r.status);
+      updateEvent(eventId, { reportSentAt: new Date().toISOString(), reportSentTo: parts.to });
+      toast('Reporte enviado a ' + parts.to);
+    }).catch(function(err){
+      console.error(err);
+      toast('No se pudo enviar el reporte. Usa "Copiar reporte" como respaldo.', 5000);
+    });
+};
   function bindStaticEvents(){
     document.getElementById('btnNewEvent').addEventListener('click', function(){ App.openEventModal(false); });
     document.getElementById('eventSelect').addEventListener('change', function(e){
