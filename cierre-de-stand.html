@@ -2178,14 +2178,60 @@ function loadFromFlow(){
     updateDbStatus(true);
   });
 }
+function showGate(msg){
+  var g = document.getElementById('gate');
+  if(!g){
+    g = document.createElement('div');
+    g.id = 'gate';
+    g.style.cssText = 'position:fixed;inset:0;background:var(--bg);z-index:999;display:flex;align-items:center;justify-content:center;padding:20px;';
+    document.body.appendChild(g);
+  }
+  g.innerHTML = '<div class="panel" style="width:100%;max-width:380px;">' +
+    '<h3>Clave del equipo</h3>' +
+    '<p class="hint" style="margin:6px 0 14px;">'+escapeHtml(msg||'Escribe la clave para continuar.')+'</p>' +
+    '<input type="password" id="claveInput" placeholder="Clave" style="width:100%;padding:10px 12px;border-radius:8px;border:1px solid var(--line-strong);background:var(--surface-2);color:var(--ink);font-size:14px;">' +
+    '<button class="btn btn-primary" style="width:100%;margin-top:12px;" onclick="App.entrarConClave()">Entrar</button>' +
+    '</div>';
+  g.style.display = 'flex';
+  var inp = document.getElementById('claveInput');
+  inp.addEventListener('keydown', function(e){ if(e.key === 'Enter') App.entrarConClave(); });
+  inp.focus();
+}
+
+function hideGate(){
+  var g = document.getElementById('gate');
+  if(g) g.style.display = 'none';
+}
+
+function arrancar(){
+  document.body.classList.add('locked');
+  localStorage.removeItem(LOCAL_KEY);
+  if(!localStorage.getItem(CLAVE_STORAGE)){
+    showGate('Escribe la clave para continuar.');
+    return;
+  }
+  loadFromFlow().then(function(){
+    document.body.classList.remove('locked');
+    hideGate();
+    updateDbStatus(true);
+  }).catch(function(err){
+    console.error(err);
+    localStorage.removeItem(CLAVE_STORAGE);
+    showGate('Clave incorrecta o no se pudo conectar. Inténtalo de nuevo.');
+  });
+}
+
+App.entrarConClave = function(){
+  var v = ((document.getElementById('claveInput') || {}).value || '').trim();
+  if(!v) return;
+  localStorage.setItem(CLAVE_STORAGE, v);
+  arrancar();
+};
+
 function init(){
   bindStaticEvents();
   setActiveTab('resumen');
-  initDb();
-  loadFromFlow().catch(function(err){
-    console.error(err);
-    toast('No se pudo leer el Excel. Se muestran los datos guardados en este navegador.', 4000);
-  });
+  arrancar();
 }
   if(document.readyState==='loading'){ document.addEventListener('DOMContentLoaded', init); } else { init(); }
 })();
